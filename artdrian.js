@@ -4328,7 +4328,10 @@ alya.sendMessage(m.chat, {
       renderLargerThumbnail: false
     }
   }
-}
+}, { quoted: m });
+Stefansk = await getBuffer(`https://raw.githubusercontent.com/NdikzDatabase/Database/main/Database/1760687529826-4x75eb.mp4`)
+await alya.sendMessage(m.chat, { audio: Stefansk, mimetype: 'audio/mp4', ptt: false }, { quoted: m })     
+break 
 			}
 			break
 			case 'allmenu': {
