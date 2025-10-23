@@ -191,7 +191,7 @@ module.exports = alya = async (alya, m, msg, store) => {
 				remoteJid: '0@s.whatsapp.net',
 				participant: '0@s.whatsapp.net',
 				fromMe: false,
-				id: 'Alya'
+				id: 'artd'
 			},
 			message: {
 				contactMessage: {
@@ -4206,11 +4206,8 @@ case 'mediafire': {
 │${setv} ${prefix}susunkata
 ╰──────❍`
 const info = `╔═══ ❖ 𝙱𝙾𝚃 𝙸𝙽𝙵𝙾 ❖ ═══╗
-║ 🤖 𝙽𝚊𝚖𝚊       : 𝙰𝚕𝚢𝚊
+║ 🤖 𝙽𝚊𝚖𝚊       : Artdrian
 ║ 👑 𝙾𝚠𝚗𝚎𝚛      : @${ownerNumber[0].split('@')[0]}
-║ 🔧 𝙼𝚘𝚍𝚎       : ${alya.public ? '𝙿𝚞𝚋𝚕𝚒𝚌' : '𝚂𝚎𝚕𝚏'}
-║ ☕ 𝙿𝚛𝚎𝚏𝚒𝚡     : ${set.multiprefix ? '「 𝙼𝚄𝙻𝚃𝙸-𝙿𝚁𝙴𝙵𝙸𝚇 」' : ' *'+prefix+'*' }
-║ 🌟 𝙵𝚒𝚝𝚞𝚛 𝙿𝚛𝚎𝚖 : 🔸
 ╚═══════════════════╝\n`
 alya.sendMessage(m.chat, {
   footer: global.packname,
@@ -4334,14 +4331,14 @@ alya.sendMessage(m.chat, {
     isForwarded: true,
     mentionedJid: [m.sender],
     forwardedNewsletterMessageInfo: {
-      newsletterName: '— Alya Bot',
+      newsletterName: '— Artdrian',
       newsletterJid: '120363398255723276@newsletter'
     },
     externalAdReply: {
-      title: 'Alya',
-      body: 'Create By Stefansk',
+      title: 'Artdrian',
+      body: 'Create By Pratama',
       thumbnailUrl: globalpp,
-      sourceUrl: 'https://whatsapp.com/channel/0029Vb0rvI5HwXb6tu2H4H0A',
+      sourceUrl: 'https://whatsapp.com/channel/0029VbBXIYz8F2pIZK8fIB2J',
       mediaType: 1,
       renderLargerThumbnail: false
     }
@@ -4363,11 +4360,8 @@ break
 ╚═══════════════════════╝
 
 ╔═══ ❖ 𝙱𝙾𝚃 𝙸𝙽𝙵𝙾 ❖ ═══╗
-║ 🤖 𝙽𝚊𝚖𝚊       : 𝙰𝚕𝚢𝚊𝙲𝚑𝚊𝚗
+║ 🤖 𝙽𝚊𝚖𝚊       : 𝙰rtdrian
 ║ 👑 𝙾𝚠𝚗𝚎𝚛      : @${ownerNumber[0].split('@')[0]}
-║ 🔧 𝙼𝚘𝚍𝚎       : ${alya.public ? '𝙿𝚞𝚋𝚕𝚒𝚌' : '𝚂𝚎𝚕𝚏'}
-║ ☕ 𝙿𝚛𝚎𝚏𝚒𝚡     : ${set.multiprefix ? '「 𝙼𝚄𝙻𝚃𝙸-𝙿𝚁𝙴𝙵𝙸𝚇 」' : ' *'+prefix+'*' }
-║ 🌟 𝙵𝚒𝚝𝚞𝚛 𝙿𝚛𝚎𝚖 : 🔸
 ╚═══════════════════════╝
 
 ╔═══ ❖ 𝙰𝙱𝙾𝚄𝚃 ❖ ═══╗
@@ -4689,7 +4683,7 @@ break
 ║ ${setv} ${prefix}𝚊𝚍𝚍𝚜𝚎𝚠𝚊
 ║ ${setv} ${prefix}𝚍𝚎𝚕𝚜𝚎𝚠𝚊
 ║ ${setv} ${prefix}𝚕𝚒𝚜𝚝𝚜𝚎𝚠𝚊
-╚═══════════════════════╝`
+╚══════════════════════╝`
 await alya.sendMessage(m.chat, {
         text: menunya,
         contextInfo: {
@@ -4730,7 +4724,7 @@ await alya.sendMessage(m.chat, {
 ║ ${setv} ${prefix}𝚕𝚒𝚜𝚝𝚘𝚗𝚕𝚒𝚗𝚎
 ║ ${setv} ${prefix}𝚐𝚛𝚘𝚞𝚙 𝚜𝚎𝚝
 ║ ${setv} ${prefix}𝚐𝚛𝚘𝚞𝚙 (khusus admin)
-╚═══════════════════════╝`
+╚══════════════════════╝`
 await alya.sendMessage(m.chat, {
         text: menunya,
         contextInfo: {
@@ -4764,7 +4758,7 @@ await alya.sendMessage(m.chat, {
 ║ ${setv} ${prefix}𝚌𝚞𝚊𝚌𝚊 (kota)
 ║ ${setv} ${prefix}𝚝𝚎𝚗𝚘𝚛 (query)
 ║ ${setv} ${prefix}𝚞𝚛𝚋𝚊𝚗 (query)
-╚═══════════════════════╝`
+╚══════════════════════╝`
 await alya.sendMessage(m.chat, {
         text: menunya,
         contextInfo: {
@@ -4793,7 +4787,7 @@ await alya.sendMessage(m.chat, {
 ║ ${setv} ${prefix}𝚏𝚊𝚌𝚎𝚋𝚘𝚘𝚔 (url)
 ║ ${setv} ${prefix}𝚜𝚙𝚘𝚝𝚒𝚏𝚢𝚍𝚕 (url)
 ║ ${setv} ${prefix}𝚖𝚎𝚍𝚒𝚊𝚏𝚒𝚛𝚎 (url)
-╚═══════════════════════╝`
+╚══════════════════════╝`
 await alya.sendMessage(m.chat, {
         text: menunya,
         contextInfo: {
@@ -4821,7 +4815,7 @@ await alya.sendMessage(m.chat, {
 ║ ${setv} ${prefix}𝚍𝚊𝚛𝚎
 ║ ${setv} ${prefix}𝚋𝚞𝚌𝚒𝚗
 ║ ${setv} ${prefix}𝚛𝚎𝚗𝚞𝚗𝚐𝚊𝚗
-╚═══════════════════════╝`
+╚══════════════════════╝`
 await alya.sendMessage(m.chat, {
         text: menunya,
         contextInfo: {
@@ -4883,7 +4877,7 @@ await alya.sendMessage(m.chat, {
 ║ ${setv} ${prefix}𝚎𝚊𝚛𝚛𝚊𝚙𝚎 (audio)
 ║ ${setv} ${prefix}𝚗𝚒𝚐𝚑𝚝𝚌𝚘𝚛𝚎 (audio)
 ║ ${setv} ${prefix}𝚐𝚎𝚝𝚎𝚡𝚒𝚏 (sticker)
-╚═══════════════════════╝`
+╚══════════════════════╝`
 await alya.sendMessage(m.chat, {
         text: menunya,
         contextInfo: {
@@ -4908,7 +4902,7 @@ await alya.sendMessage(m.chat, {
 ║ ${setv} ${prefix}𝚜𝚒𝚖𝚒 (query)
 ║ ${setv} ${prefix}𝚐𝚎𝚖𝚒𝚗𝚒 (query)
 ║ ${setv} ${prefix}𝚝𝚡𝚝𝟸𝚒𝚖𝚐 (query)
-╚═══════════════════════╝`
+╚══════════════════════╝`
 await alya.sendMessage(m.chat, {
         text: menunya,
         contextInfo: {
@@ -4930,7 +4924,7 @@ await alya.sendMessage(m.chat, {
 				const menunya = `
 ╔═══ ❖ 𝚁𝙰𝙽𝙳𝙾𝙼 𝙼𝙴𝙽𝚄 ❖ ═══╗
 ║ ${setv} ${prefix}𝚌𝚘𝚏𝚏𝚎
-╚═══════════════════════╝`
+╚══════════════════════╝`
 await alya.sendMessage(m.chat, {
         text: menunya,
         contextInfo: {
@@ -4957,7 +4951,7 @@ await alya.sendMessage(m.chat, {
 ║ ${setv} ${prefix}𝚝𝚒𝚔𝚝𝚘𝚔𝚜𝚝𝚊𝚕𝚔
 ║ ${setv} ${prefix}𝚐𝚒𝚝𝚑𝚞𝚋𝚜𝚝𝚊𝚕𝚔
 ║ ${setv} ${prefix}𝚐𝚎𝚗𝚜𝚑𝚒𝚗𝚜𝚝𝚊𝚕𝚔
-╚═══════════════════════╝`
+╚══════════════════════╝`
 await alya.sendMessage(m.chat, {
         text: menunya,
         contextInfo: {
@@ -4994,7 +4988,7 @@ await alya.sendMessage(m.chat, {
 ║ ${setv} ${prefix}𝚍𝚎𝚕𝚞𝚜𝚛
 ║ ${setv} ${prefix}𝚕𝚒𝚜𝚝𝚜𝚛𝚟
 ║ ${setv} ${prefix}𝚍𝚎𝚕𝚜𝚛𝚟
-╚═══════════════════════╝`
+╚══════════════════════╝`
 await alya.sendMessage(m.chat, {
         text: menunya,
         contextInfo: {
@@ -5017,7 +5011,7 @@ await alya.sendMessage(m.chat, {
 ╔═══ ❖ 𝙰𝙽𝙸𝙼𝙴 𝙼𝙴𝙽𝚄 ❖ ═══╗
 ║ ${setv} ${prefix}𝚠𝚊𝚒𝚏𝚞
 ║ ${setv} ${prefix}𝚗𝚎𝚔𝚘
-╚═══════════════════════╝`
+╚══════════════════════╝`
 await alya.sendMessage(m.chat, {
         text: menunya,
         contextInfo: {
@@ -5062,7 +5056,7 @@ await alya.sendMessage(m.chat, {
 ║ ${setv} ${prefix}𝚝𝚎𝚋𝚊𝚔𝚗𝚎𝚐𝚊𝚛𝚊
 ║ ${setv} ${prefix}𝚝𝚎𝚋𝚊𝚔𝚐𝚊𝚖𝚋𝚊𝚛
 ║ ${setv} ${prefix}𝚝𝚎𝚋𝚊𝚔𝚋𝚎𝚗𝚍𝚎𝚛𝚊
-╚═══════════════════════╝`
+╚══════════════════════╝`
 await alya.sendMessage(m.chat, {
         text: menunya,
         contextInfo: {
@@ -5102,7 +5096,7 @@ await alya.sendMessage(m.chat, {
 ║ ${setv} ${prefix}𝚑𝚞𝚕𝚞𝚑 (text)
 ║ ${setv} ${prefix}𝚑𝚎𝚕𝚎𝚑 (text)
 ║ ${setv} ${prefix}𝚑𝚘𝚕𝚘𝚑 (text)
-╚═══════════════════════╝`
+╚══════════════════════╝`
 await alya.sendMessage(m.chat, {
         text: menunya,
         contextInfo: {
@@ -5430,7 +5424,7 @@ m.reply('*SUCCESSFULLY DELETE THE USER*')
 ║ ${setv} ${prefix}$
 ║ ${setv} ${prefix}>
 ║ ${setv} ${prefix}<
-╚═══════════════════════╝`
+╚══════════════════════╝`
 await alya.sendMessage(m.chat, {
         text: menunya,
         contextInfo: {
