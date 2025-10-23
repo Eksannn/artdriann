@@ -36,7 +36,6 @@ global.capikey = "ptlc_6nGMJ8o0iQXwRs3TfAUtw9m1AGlmjnTyvA7tnrMtggs"//pltc
 
 global.fake = {
 	anonim: 'https://telegra.ph/file/95670d63378f7f4210f03.png',
-	docs: fs.readFileSync('./src/media/fake.pdf'),
 	listfakedocs: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.openxmlformats-officedocument.presentationml.presentation','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/pdf'],
 }
 
@@ -44,7 +43,7 @@ global.my = {
 	yt: '-',
 	gh: '-',
 	gc: '-',
-	ch: '120363398255723276@newsletter',
+	ch: '-',
 }
 
 global.limit = {
@@ -68,9 +67,9 @@ global.mess = {
 	private: 'Gunakan Di Privat Chat!',
 	limit: 'Limit Anda Telah Habis!',
 	prem: 'Khusus User Premium!',
-	wait: 'Loading....',
+	wait: 'Bentar yaa',
 	error: 'Error!',
-	done: 'Gabung Agar Kami Terus Berhembang\nhttps://whatsapp.com/channel/0029Vb0rvI5HwXb6tu2H4H0A'
+	done: 'Doneee'
 }
 
 global.APIs = {
