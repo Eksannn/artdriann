@@ -4222,21 +4222,6 @@ alya.sendMessage(m.chat, {
           title: 'Click To List',
           sections: [
             {
-              title: 'INFORMATION',
-              rows: [
-                {
-                  title: 'Script 📥',
-                  description: 'Display Script Alya-Bot',
-                  id: '.sc'
-                },
-                {
-                  title: 'Donasi 💳',
-                  description: 'Mendukung Perkembangan',
-                  id: '.donasi'
-                }
-              ]
-            },
-            {
               title: 'LIST MENU',
               highlight_label: 'Recomend',
               rows: [
