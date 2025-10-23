@@ -36,8 +36,6 @@ global.capikey = "ptlc_6nGMJ8o0iQXwRs3TfAUtw9m1AGlmjnTyvA7tnrMtggs"//pltc
 
 global.fake = {
 	anonim: 'https://telegra.ph/file/95670d63378f7f4210f03.png',
-	thumbnailUrl: 'https://files.catbox.moe/4cb19z.pg',
-	thumbnail: fs.readFileSync('./src/media/aya.png'),
 	docs: fs.readFileSync('./src/media/fake.pdf'),
 	listfakedocs: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.openxmlformats-officedocument.presentationml.presentation','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/pdf'],
 }
