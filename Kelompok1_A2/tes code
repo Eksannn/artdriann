@@ -1,0 +1,705 @@
+/*
+  perpustakaan.c
+  Versi final diperbaiki:
+  - portable localtime (safe_localtime) untuk Windows/POSIX
+  - include math.h untuk ceil()
+  - sanitasi input & keamanan buffer tetap dipertahankan
+*/
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <ctype.h>
+#include <math.h>
+
+#ifdef _WIN32
+  #include <windows.h>
+  #define STRCASECMP _stricmp
+#else
+  #include <strings.h>
+  #define STRCASECMP strcasecmp
+#endif
+
+#define MAX_ITEMS 200
+#define MAX_NAME 200
+#define MAX_LOANS 500
+
+/* filenames */
+const char *F_HISTORY_BORROW = "history_peminjaman.txt";
+const char *F_HISTORY_RETURN = "history_pengembalian.txt";
+const char *F_STOK = "stok_buku.txt";
+const char *F_LOANS = "data_pinjam.txt";
+
+/* data structures */
+typedef struct {
+    char name[MAX_NAME];
+    int stok;
+} Item;
+
+typedef struct {
+    char user[50];
+    char book[MAX_NAME];
+    long long borrow_ts; // unix timestamp
+    long long due_ts;
+} Loan;
+
+/* in-memory */
+static Item buku[MAX_ITEMS];
+static int itemcount = 0;
+static Loan loans[MAX_LOANS];
+static int loancount = 0;
+
+/* prototypes */
+void pause_and_clear(void);
+void now_str(char *buf, size_t n);
+void append_history(const char *filename, const char *username, const char *bookname, const char *action);
+int is_valid_worker(const char *user, const char *pass);
+void load_default_books(void);
+void save_stok(void);
+void load_stok(void);
+void save_loans(void);
+void load_loans(void);
+int find_book_index(const char *name);
+void list_books(void);
+void borrow_book(const char *username);
+void return_book(const char *username);
+void view_user_loans(const char *username);
+void view_history(const char *filename);
+void add_book(void);
+void delete_book(void);
+void export_report_csv(void);
+void manage_stock_menu(void);
+void admin_menu(const char *username);
+void user_menu(const char *username);
+
+/* portable localtime wrapper */
+static int safe_localtime(const time_t *timep, struct tm *result) {
+#ifdef _WIN32
+    /* localtime_s returns 0 on success */
+    if (!timep || !result) return -1;
+    return (localtime_s(result, timep) == 0) ? 0 : -1;
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__) || defined(__posix)
+    if (!timep || !result) return -1;
+#if defined(_POSIX_THREAD_SAFE_FUNCTIONS) && !defined(__ANDROID__)
+    if (localtime_r(timep, result) != NULL) return 0;
+    return -1;
+#else
+    /* fallback */
+    struct tm *tmp = localtime(timep);
+    if (!tmp) return -1;
+    *result = *tmp;
+    return 0;
+#endif
+#else
+    /* generic fallback */
+    struct tm *tmp = localtime(timep);
+    if (!tmp || !result) return -1;
+    *result = *tmp;
+    return 0;
+#endif
+}
+
+/* helpers */
+static void trim_newline(char *s) {
+    if (!s) return;
+    char *p = s + strlen(s) - 1;
+    while (p >= s && (*p == '\n' || *p == '\r')) { *p = '\0'; p--; }
+}
+
+/* utility functions */
+void pause_and_clear(){
+    printf("\nTekan Enter untuk melanjutkan...");
+    getchar();
+#ifdef _WIN32
+    system("cls");
+#else
+    system("clear");
+#endif
+}
+
+void now_str(char *buf, size_t n) {
+    time_t t = time(NULL);
+    struct tm tmv;
+    if (safe_localtime(&t, &tmv) == 0) {
+        strftime(buf, n, "%Y-%m-%d %H:%M:%S", &tmv);
+    } else {
+        snprintf(buf, n, "unknown-time");
+    }
+}
+
+void append_history(const char *filename, const char *username, const char *bookname, const char *action) {
+    FILE *fp = fopen(filename, "a");
+    if (!fp) return;
+    char timestr[64]; now_str(timestr, sizeof(timestr));
+    fprintf(fp, "%s | User: %s | Buku: %s | %s\n", timestr, username, bookname, action);
+    fclose(fp);
+}
+
+/* login check (sama seperti permintaan) */
+int is_valid_worker(const char *user, const char *pass) {
+    if ((strcmp(user, "admin_sigma") == 0 && strcmp(pass, "1235") == 0) ||
+        (strcmp(user, "vonaquie") == 0 && strcmp(pass, "88088") == 0) ||
+        (strcmp(user, "prawisdha") == 0 && strcmp(pass, "67") == 0) ||
+        (strcmp(user, "dennis") == 0 && strcmp(pass, "1308") == 0)) {
+        return 1;
+    }
+    return 0;
+}
+
+/* default set of books (used if stok file missing) */
+void load_default_books() {
+    /* reset to avoid duplikasi jika dipanggil lebih dari sekali */
+    itemcount = 0;
+    Item defaults[] = {
+        {"Pemrograman C", 10},
+        {"Algoritma Dasar", 8},
+        {"Struktur Data", 12},
+        {"Matematika Diskrit", 7},
+        {"Basis Data", 15},
+        {"Fisika Dasar", 6},
+        {"Jaringan Komputer", 9},
+        {"Sistem Operasi", 10},
+        {"Arsitektur Komputer", 5},
+        {"Kalkulus", 12}
+    };
+    int defcount = sizeof(defaults)/sizeof(defaults[0]);
+    for (int i = 0; i < defcount && itemcount < MAX_ITEMS; i++) {
+        buku[itemcount++] = defaults[i];
+    }
+}
+
+/* stok file format: name|stok\n  (any '|' in name replaced with '/' when saving) */
+void save_stok() {
+    FILE *fp = fopen(F_STOK, "w");
+    if (!fp) {
+        printf("Gagal menyimpan stok ke file!\n");
+        return;
+    }
+    for (int i = 0; i < itemcount; i++) {
+        char safe_name[MAX_NAME];
+        strncpy(safe_name, buku[i].name, MAX_NAME);
+        safe_name[MAX_NAME-1] = '\0';
+        for (int j = 0; safe_name[j]; j++) if (safe_name[j] == '|') safe_name[j] = '/';
+        fprintf(fp, "%s|%d\n", safe_name, buku[i].stok);
+    }
+    fclose(fp);
+}
+
+void load_stok() {
+    FILE *fp = fopen(F_STOK, "r");
+    if (!fp) {
+        /* file tidak ada: load default */
+        load_default_books();
+        return;
+    }
+    itemcount = 0;
+    char line[1024];
+    while (fgets(line, sizeof(line), fp)) {
+        trim_newline(line);
+        char *sep = strchr(line, '|');
+        if (!sep) continue;
+        *sep = '\0';
+        char *name = line;
+        int stok = atoi(sep + 1);
+        if (itemcount < MAX_ITEMS) {
+            strncpy(buku[itemcount].name, name, MAX_NAME);
+            buku[itemcount].name[MAX_NAME-1] = '\0';
+            buku[itemcount].stok = stok;
+            itemcount++;
+        }
+    }
+    fclose(fp);
+}
+
+/* loans saved as: user|book|borrow_ts|due_ts\n */
+void save_loans() {
+    FILE *fp = fopen(F_LOANS, "w");
+    if (!fp) return;
+    for (int i = 0; i < loancount; i++) {
+        fprintf(fp, "%s|%s|%lld|%lld\n",
+                loans[i].user, loans[i].book,
+                (long long)loans[i].borrow_ts,
+                (long long)loans[i].due_ts);
+    }
+    fclose(fp);
+}
+
+void load_loans() {
+    FILE *fp = fopen(F_LOANS, "r");
+    if (!fp) return;
+    loancount = 0;
+    char line[1024];
+    while (fgets(line, sizeof(line), fp)) {
+        trim_newline(line);
+        char *a = strtok(line, "|");
+        char *b = strtok(NULL, "|");
+        char *c = strtok(NULL, "|");
+        char *d = strtok(NULL, "|");
+        if (!a || !b || !c || !d) continue;
+        if (loancount < MAX_LOANS) {
+            strncpy(loans[loancount].user, a, sizeof(loans[loancount].user));
+            loans[loancount].user[sizeof(loans[loancount].user)-1] = '\0';
+            strncpy(loans[loancount].book, b, sizeof(loans[loancount].book));
+            loans[loancount].book[sizeof(loans[loancount].book)-1] = '\0';
+            loans[loancount].borrow_ts = atoll(c);
+            loans[loancount].due_ts = atoll(d);
+            loancount++;
+        }
+    }
+    fclose(fp);
+}
+
+/* find index by case-insensitive name */
+int find_book_index(const char *name) {
+    for (int i = 0; i < itemcount; i++) {
+        if (STRCASECMP(buku[i].name, name) == 0) return i;
+    }
+    return -1;
+}
+
+void list_books() {
+    printf("\n=== DAFTAR BUKU ===\n");
+    for (int i = 0; i < itemcount; i++) {
+        printf("%d. %-30s | Stok: %d\n", i+1, buku[i].name, buku[i].stok);
+    }
+}
+
+/* borrow: create loan, decrease stok, append history and save */
+void borrow_book(const char *username) {
+    char input[MAX_NAME];
+    printf("\nMasukkan judul buku: ");
+    if (!fgets(input, sizeof(input), stdin)) { printf("Input gagal.\n"); return; }
+    trim_newline(input);
+    if (strlen(input) == 0) { printf("Judul kosong.\n"); return; }
+    int idx = find_book_index(input);
+    if (idx == -1) {
+        printf("Buku tidak ditemukan!\n");
+        return;
+    }
+    if (buku[idx].stok <= 0) {
+        printf("Stok buku habis!\n");
+        return;
+    }
+    if (loancount >= MAX_LOANS) {
+        printf("Kapasitas pinjaman penuh!\n");
+        return;
+    }
+    time_t now = time(NULL);
+    long long due = now + (7LL * 24 * 60 * 60); // 7 hari
+    strncpy(loans[loancount].user, username, sizeof(loans[loancount].user));
+    loans[loancount].user[sizeof(loans[loancount].user)-1] = '\0';
+    strncpy(loans[loancount].book, buku[idx].name, sizeof(loans[loancount].book));
+    loans[loancount].book[sizeof(loans[loancount].book)-1] = '\0';
+    loans[loancount].borrow_ts = (long long)now;
+    loans[loancount].due_ts = due;
+    loancount++;
+    buku[idx].stok--;
+    append_history(F_HISTORY_BORROW, username, buku[idx].name, "pinjam");
+    save_loans();
+    save_stok();
+    printf("Peminjaman berhasil! Buku '%s' dipinjam. Tenggat: 7 hari dari sekarang.\n", buku[idx].name);
+}
+
+/* return: find loan record matching user+book, increase stok, append history */
+void return_book(const char *username) {
+    char input[MAX_NAME];
+    printf("\nMasukkan judul buku: ");
+    if (!fgets(input, sizeof(input), stdin)) { printf("Input gagal.\n"); return; }
+    trim_newline(input);
+    if (strlen(input) == 0) { printf("Judul kosong.\n"); return; }
+    int loan_idx = -1;
+    for (int i = 0; i < loancount; i++) {
+        if (STRCASECMP(loans[i].book, input) == 0 && STRCASECMP(loans[i].user, username) == 0) {
+            loan_idx = i; break;
+        }
+    }
+    if (loan_idx == -1) {
+        printf("Data peminjaman tidak ditemukan untuk user '%s' dan buku '%s'.\n", username, input);
+        return;
+    }
+    int bidx = find_book_index(loans[loan_idx].book);
+    if (bidx != -1) buku[bidx].stok++;
+    time_t now = time(NULL);
+    long long due = loans[loan_idx].due_ts;
+    double fine = 0.0;
+    if (now > due) {
+        double days = difftime(now, (time_t)due) / (24*60*60);
+        int late_days = (int)ceil(days); /* pembulatan ke atas */
+        if (late_days < 1) late_days = 1;
+        const int FINE_PER_DAY = 5000; // rupiah per hari
+        fine = (double)(late_days * FINE_PER_DAY);
+        printf("Buku terlambat %d hari. Denda: Rp %.0f\n", late_days, fine);
+    }
+    append_history(F_HISTORY_RETURN, username, loans[loan_idx].book, "kembali");
+    /* remove loan entry */
+    for (int k = loan_idx; k < loancount - 1; k++) loans[k] = loans[k+1];
+    loancount--;
+    save_loans();
+    save_stok();
+    printf("Pengembalian berhasil! Buku '%s' dikembalikan.\n", input);
+}
+
+/* view loans owned by a user */
+void view_user_loans(const char *username) {
+    printf("\n=== Daftar Buku yang Dipinjam oleh %s ===\n", username);
+    int found = 0;
+    for (int i = 0; i < loancount; i++) {
+        if (STRCASECMP(loans[i].user, username) == 0) {
+            char bt[64], dt[64];
+            time_t t1 = (time_t)loans[i].borrow_ts;
+            struct tm tm1s;
+            if (safe_localtime(&t1, &tm1s) == 0) strftime(bt, sizeof(bt), "%Y-%m-%d", &tm1s);
+            else strncpy(bt, "unknown", sizeof(bt));
+            time_t t2 = (time_t)loans[i].due_ts;
+            struct tm tm2s;
+            if (safe_localtime(&t2, &tm2s) == 0) strftime(dt, sizeof(dt), "%Y-%m-%d", &tm2s);
+            else strncpy(dt, "unknown", sizeof(dt));
+            printf("- %s (pinjam: %s | tenggat: %s)\n", loans[i].book, bt, dt);
+            found = 1;
+        }
+    }
+    if (!found) printf("Tidak ada pinjaman aktif.\n");
+}
+
+/* admin: view history file content */
+void view_history(const char *filename) {
+    FILE *fp = fopen(filename, "r");
+    if (!fp) { printf("File history tidak ditemukan.\n"); return; }
+    char line[1024];
+    printf("\n--- Isi %s ---\n", filename);
+    while (fgets(line, sizeof(line), fp)) {
+        printf("%s", line);
+    }
+    fclose(fp);
+}
+
+/* admin: add and delete book */
+void add_book() {
+    char name[MAX_NAME];
+    int stok;
+    printf("\nMasukkan judul buku baru: ");
+    if (!fgets(name, sizeof(name), stdin)) { printf("Input gagal.\n"); return; }
+    trim_newline(name);
+    if (strlen(name) == 0) { printf("Nama buku kosong.\n"); return; }
+    if (find_book_index(name) != -1) { printf("Buku sudah ada. Gunakan fitur tambah stok.\n"); return; }
+    printf("Masukkan stok awal: ");
+    if (scanf("%d", &stok) != 1) { printf("Input stok tidak valid.\n"); while(getchar()!='\n'); return; }
+    getchar(); // consume newline
+    if (itemcount < MAX_ITEMS) {
+        strncpy(buku[itemcount].name, name, MAX_NAME);
+        buku[itemcount].name[MAX_NAME-1] = '\0';
+        buku[itemcount].stok = stok;
+        itemcount++;
+        save_stok();
+        printf("Buku berhasil ditambahkan.\n");
+    } else printf("Kapasitas buku penuh.\n");
+}
+
+void delete_book() {
+    char name[MAX_NAME];
+    printf("\nMasukkan judul buku yang ingin dihapus: ");
+    if (!fgets(name, sizeof(name), stdin)) { printf("Input gagal.\n"); return; }
+    trim_newline(name);
+    int idx = find_book_index(name);
+    if (idx == -1) { printf("Buku tidak ditemukan.\n"); return; }
+    for (int i = idx; i < itemcount - 1; i++) buku[i] = buku[i+1];
+    itemcount--;
+    save_stok();
+    printf("Buku '%s' dihapus.\n", name);
+}
+
+/* export history files to CSV (simple) */
+void export_report_csv() {
+    char filename[256];
+    printf("Masukkan nama file CSV (misal laporan.csv): ");
+    if (!fgets(filename, sizeof(filename), stdin)) { printf("Input gagal.\n"); return; }
+    trim_newline(filename);
+    if (strlen(filename) == 0) { printf("Nama file tidak valid.\n"); return; }
+    FILE *fp = fopen(filename, "w");
+    if (!fp) { printf("Gagal membuat file.\n"); return; }
+    fprintf(fp, "type,timestamp,user,book,action\n");
+    char line[1024];
+    FILE *hb = fopen(F_HISTORY_BORROW, "r");
+    if (hb) {
+        while (fgets(line, sizeof(line), hb)) {
+            char *p = strstr(line, " | User: ");
+            if (!p) continue;
+            int tlen = p - line;
+            char timestr[128]; strncpy(timestr, line, tlen); timestr[tlen] = '\0';
+            char *u = p + strlen(" | User: ");
+            char *pb = strstr(u, " | Buku: ");
+            if (!pb) continue;
+            int ulen = pb - u;
+            char user[128]; strncpy(user, u, ulen); user[ulen] = '\0';
+            char *bk = pb + strlen(" | Buku: ");
+            char *end = strstr(bk, " | ");
+            char bookname[256];
+            if (end) {
+                int blen = end - bk;
+                strncpy(bookname, bk, blen); bookname[blen] = '\0';
+            } else strncpy(bookname, bk, sizeof(bookname));
+            fprintf(fp, "borrow,%s,%s,%s,pinjam\n", timestr, user, bookname);
+        }
+        fclose(hb);
+    }
+    FILE *hr = fopen(F_HISTORY_RETURN, "r");
+    if (hr) {
+        while (fgets(line, sizeof(line), hr)) {
+            char *p = strstr(line, " | User: ");
+            if (!p) continue;
+            int tlen = p - line;
+            char timestr[128]; strncpy(timestr, line, tlen); timestr[tlen] = '\0';
+            char *u = p + strlen(" | User: ");
+            char *pb = strstr(u, " | Buku: ");
+            if (!pb) continue;
+            int ulen = pb - u;
+            char user[128]; strncpy(user, u, ulen); user[ulen] = '\0';
+            char *bk = pb + strlen(" | Buku: ");
+            char *end = strstr(bk, " | ");
+            char bookname[256];
+            if (end) {
+                int blen = end - bk;
+                strncpy(bookname, bk, blen); bookname[blen] = '\0';
+            } else strncpy(bookname, bk, sizeof(bookname));
+            fprintf(fp, "return,%s,%s,%s,kembali\n", timestr, user, bookname);
+        }
+        fclose(hr);
+    }
+    fclose(fp);
+    printf("Laporan berhasil diexport ke '%s'.\n", filename);
+}
+
+/* stock management sub-menu (admin) */
+void manage_stock_menu(void) {
+    int stokMenu = 0;
+    do {
+        printf("\n=== KELOLA STOK ===\n");
+        printf("1. Cek Stok Buku\n");
+        printf("2. Tambah Stok Buku\n");
+        printf("3. Kembali\n");
+        printf("Pilih menu: ");
+        if (scanf("%d", &stokMenu) != 1) { while(getchar()!='\n'); stokMenu = 0; }
+        getchar();
+        if (stokMenu == 1) {
+            char namaBuku[MAX_NAME];
+            printf("Masukkan nama buku: ");
+            if (!fgets(namaBuku, sizeof(namaBuku), stdin)) { printf("Input gagal.\n"); continue; }
+            trim_newline(namaBuku);
+            int found = 0;
+            for (int i = 0; i < itemcount; i++) {
+                if (STRCASECMP(buku[i].name, namaBuku) == 0) {
+                    printf("Buku: %s | Stok saat ini: %d\n", buku[i].name, buku[i].stok);
+                    found = 1; break;
+                }
+            }
+            if (!found) printf("Buku '%s' tidak ditemukan!\n", namaBuku);
+        } else if (stokMenu == 2) {
+            char namaBuku[MAX_NAME];
+            int tambah = 0;
+            printf("Masukkan nama buku yang ingin ditambah stoknya: ");
+            if (!fgets(namaBuku, sizeof(namaBuku), stdin)) { printf("Input gagal.\n"); continue; }
+            trim_newline(namaBuku);
+            int idx = find_book_index(namaBuku);
+            if (idx == -1) { printf("Buku '%s' tidak ditemukan!\n", namaBuku); }
+            else {
+                printf("Tambah stok %s sebanyak: ", buku[idx].name);
+                if (scanf("%d", &tambah) != 1) { printf("Input tidak valid.\n"); while(getchar()!='\n'); }
+                else {
+                    getchar();
+                    buku[idx].stok += tambah;
+                    save_stok();
+                    printf("Stok baru %s: %d\n", buku[idx].name, buku[idx].stok);
+                }
+            }
+        }
+    } while (stokMenu != 3);
+}
+
+/* admin menu */
+void admin_menu(const char *username) {
+    int mainMenu = 0;
+    do {
+        printf("\n=== MENU ADMIN PERPUSTAKAAN ===\n");
+        printf("1. Daftar Buku\n");
+        printf("2. Peminjaman Buku\n");
+        printf("3. Pengembalian Buku\n");
+        printf("4. Kelola Stok Buku\n");
+        printf("5. Lihat Riwayat Peminjaman\n");
+        printf("6. Lihat Riwayat Pengembalian\n");
+        printf("7. Tambah Buku Baru\n");
+        printf("8. Hapus Buku\n");
+        printf("9. Export Laporan CSV\n");
+        printf("10. Lihat Pinjaman Aktif (semua user)\n");
+        printf("11. Logout\n");
+        printf("Pilih menu: ");
+        if (scanf("%d", &mainMenu) != 1) { while(getchar()!='\n'); mainMenu = 0; }
+        getchar();
+        if (mainMenu == 1) {
+            list_books();
+            pause_and_clear();
+        } else if (mainMenu == 2) {
+            borrow_book(username);
+            pause_and_clear();
+        } else if (mainMenu == 3) {
+            /* admin bisa mengembalikan atas nama siapa saja -> minta user */
+            char target_user[50];
+            printf("Masukkan username peminjam (misal dennis): ");
+            if (!fgets(target_user, sizeof(target_user), stdin)) { printf("Input gagal.\n"); pause_and_clear(); continue; }
+            trim_newline(target_user);
+            if (strlen(target_user) == 0) { printf("Username kosong.\n"); pause_and_clear(); continue; }
+            char input[MAX_NAME];
+            printf("Masukkan judul buku yang dikembalikan: ");
+            if (!fgets(input, sizeof(input), stdin)) { printf("Input gagal.\n"); pause_and_clear(); continue; }
+            trim_newline(input);
+            int loan_idx = -1;
+            for (int i = 0; i < loancount; i++) {
+                if (STRCASECMP(loans[i].book, input) == 0 && STRCASECMP(loans[i].user, target_user) == 0) {
+                    loan_idx = i; break;
+                }
+            }
+            if (loan_idx == -1) {
+                printf("Data peminjaman tidak ditemukan untuk user '%s' dan buku '%s'.\n", target_user, input);
+            } else {
+                int bidx = find_book_index(loans[loan_idx].book);
+                if (bidx != -1) buku[bidx].stok++;
+                time_t now = time(NULL);
+                long long due = loans[loan_idx].due_ts;
+                double fine = 0.0;
+                if (now > due) {
+                    double days = difftime(now, (time_t)due) / (24*60*60);
+                    int late_days = (int)ceil(days);
+                    if (late_days < 1) late_days = 1;
+                    const int FINE_PER_DAY = 5000;
+                    fine = (double)(late_days * FINE_PER_DAY);
+                    printf("Buku terlambat %d hari. Denda: Rp %.0f\n", late_days, fine);
+                }
+                append_history(F_HISTORY_RETURN, target_user, loans[loan_idx].book, "kembali");
+                for (int k = loan_idx; k < loancount - 1; k++) loans[k] = loans[k+1];
+                loancount--;
+                save_loans(); save_stok();
+                printf("Pengembalian oleh admin berhasil.\n");
+            }
+            pause_and_clear();
+        } else if (mainMenu == 4) {
+            manage_stock_menu();
+            pause_and_clear();
+        } else if (mainMenu == 5) {
+            view_history(F_HISTORY_BORROW);
+            pause_and_clear();
+        } else if (mainMenu == 6) {
+            view_history(F_HISTORY_RETURN);
+            pause_and_clear();
+        } else if (mainMenu == 7) {
+            add_book();
+            pause_and_clear();
+        } else if (mainMenu == 8) {
+            delete_book();
+            pause_and_clear();
+        } else if (mainMenu == 9) {
+            export_report_csv();
+            pause_and_clear();
+        } else if (mainMenu == 10) {
+            printf("\n=== Pinjaman Aktif ===\n");
+            if (loancount == 0) printf("Tidak ada pinjaman aktif.\n");
+            else {
+                for (int i = 0; i < loancount; i++) {
+                    char bt[64], dt[64];
+                    time_t t1 = (time_t)loans[i].borrow_ts;
+                    struct tm tm1s;
+                    if (safe_localtime(&t1, &tm1s) == 0) strftime(bt, sizeof(bt), "%Y-%m-%d", &tm1s);
+                    else strncpy(bt, "unknown", sizeof(bt));
+                    time_t t2 = (time_t)loans[i].due_ts;
+                    struct tm tm2s;
+                    if (safe_localtime(&t2, &tm2s) == 0) strftime(dt, sizeof(dt), "%Y-%m-%d", &tm2s);
+                    else strncpy(dt, "unknown", sizeof(dt));
+                    printf("%d. %s | User: %s | Pinjam: %s | Tenggat: %s\n",
+                           i+1, loans[i].book, loans[i].user, bt, dt);
+                }
+            }
+            pause_and_clear();
+        } else if (mainMenu == 11) {
+            printf("Logout...\n");
+        } else {
+            printf("Pilihan tidak valid.\n");
+        }
+    } while (mainMenu != 11);
+}
+
+/* user menu for 'dennis' */
+void user_menu(const char *username) {
+    int userMenu = 0;
+    do {
+        printf("\n=== MENU USER (%s) ===\n", username);
+        printf("1. Pinjam Buku\n");
+        printf("2. Balikan Buku\n");
+        printf("3. Lihat Buku yang Dipinjam\n");
+        printf("4. Lihat Stok Buku\n");
+        printf("5. Logout\n");
+        printf("Pilih menu: ");
+        if (scanf("%d", &userMenu) != 1) { while(getchar()!='\n'); userMenu = 0; }
+        getchar();
+        if (userMenu == 1) {
+            borrow_book(username);
+            pause_and_clear();
+        } else if (userMenu == 2) {
+            return_book(username);
+            pause_and_clear();
+        } else if (userMenu == 3) {
+            view_user_loans(username);
+            pause_and_clear();
+        } else if (userMenu == 4) {
+            list_books();
+            pause_and_clear();
+        } else if (userMenu == 5) {
+            printf("Logout...\n");
+        } else {
+            printf("Pilihan tidak valid.\n");
+        }
+    } while (userMenu != 5);
+}
+
+/* main */
+int main(void) {
+    /* load data */
+    load_stok();
+    load_loans();
+
+    while (1) {
+        char username[50], password[50];
+        printf("=== LOGIN PERPUSTAKAAN ===\n");
+        printf("Username: ");
+        if (scanf("%49s", username) != 1) { return 0; }
+        printf("Password: ");
+        if (scanf("%49s", password) != 1) { return 0; }
+        getchar(); // consume newline
+
+        while (!is_valid_worker(username, password)) {
+            printf("Login gagal! Silakan coba lagi.\n");
+            printf("Username: ");
+            if (scanf("%49s", username) != 1) return 0;
+            printf("Password: ");
+            if (scanf("%49s", password) != 1) return 0;
+            getchar();
+        }
+
+        printf("\nLogin berhasil! Selamat datang, %s.\n", username);
+
+        if (STRCASECMP(username, "dennis") == 0) {
+            user_menu(username);
+        } else {
+            admin_menu(username);
+        }
+
+        /* after logout, continue to login screen */
+#ifdef _WIN32
+        system("cls");
+#else
+        system("clear");
+#endif
+    }
+
+    return 0;
+}
+
+
